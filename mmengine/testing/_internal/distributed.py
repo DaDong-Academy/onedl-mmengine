@@ -227,6 +227,24 @@ class MultiProcessTestCase(TestCase):
 
             assert event_listener_thread is not None
             event_listener_thread.join()
+            # If a distributed process group was initialized in this
+            # subprocess, make sure to properly destroy it. Otherwise,
+            # Torch warns about leaking resources at program exit.
+            try:
+                # `torch` is already imported at module top
+                if hasattr(
+                        torch,
+                        'distributed') and torch.distributed.is_initialized():
+                    try:
+                        torch.distributed.destroy_process_group()
+                    except Exception:
+                        # Ignore destroy errors; we're exiting the subprocess
+                        # and do not want to mask the actual test error.
+                        pass
+            except Exception:
+                # Defensive fallback: ignore any exceptions from checks
+                pass
+
             # Close pipe after done with test.
             parent_pipe.close()
 
