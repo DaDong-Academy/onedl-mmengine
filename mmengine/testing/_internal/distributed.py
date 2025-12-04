@@ -369,6 +369,14 @@ class MultiProcessTestCase(TestCase):
         # If no process exited uncleanly, we check for timeouts, and then
         # ensure each process exited cleanly.
         for i, p in enumerate(self.processes):
+            # Log child process exit codes for debugging intermittent
+            # failures and skips (helps identify whether a process
+            # terminated due to an exception, skip, or external kill).
+            try:
+                logger.info(f'Process {i} exit code: {p.exitcode}')
+            except Exception:
+                pass
+
             if p.exitcode is None:
                 raise RuntimeError(
                     f'Process {i} terminated or timed out after '
