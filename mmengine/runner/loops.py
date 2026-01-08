@@ -209,16 +209,23 @@ class IterBasedTrainLoop(BaseLoop):
             first element in the tuple is a milestone and the second
             element is a interval. The interval is used after the
             corresponding milestone. Defaults to None.
+        fast_forward_on_resume (bool): Whether to skip advancing the
+            dataloader iterator when resuming from a checkpoint. When
+            `False` (default), the dataloader will iterate through
+            trained steps in the previous training to maintain training
+            state consistency. When `True`, this fast-forward
+            is skipped to save time, but may affect reproducibility if
+            the dataloader has state-dependent behavior.
     """
 
-    def __init__(
-            self,
-            runner,
-            dataloader: Union[DataLoader, Dict],
-            max_iters: int,
-            val_begin: int = 1,
-            val_interval: int = 1000,
-            dynamic_intervals: Optional[List[Tuple[int, int]]] = None) -> None:
+    def __init__(self,
+                 runner,
+                 dataloader: Union[DataLoader, Dict],
+                 max_iters: int,
+                 val_begin: int = 1,
+                 val_interval: int = 1000,
+                 dynamic_intervals: Optional[List[Tuple[int, int]]] = None,
+                 fast_forward_on_resume: bool = False) -> None:
         super().__init__(runner, dataloader)
         self._max_iters = int(max_iters)
         assert self._max_iters == max_iters, \
@@ -228,6 +235,7 @@ class IterBasedTrainLoop(BaseLoop):
         self._iter = 0
         self.val_begin = val_begin
         self.val_interval = val_interval
+        self.fast_forward_on_resume = fast_forward_on_resume
         # This attribute will be updated by `EarlyStoppingHook`
         # when it is enabled.
         self.stop_training = False
@@ -280,8 +288,10 @@ class IterBasedTrainLoop(BaseLoop):
                 'that has already been trained',
                 logger='current',
                 level=logging.WARNING)
-            for _ in range(self._iter):
-                next(self.dataloader_iterator)
+            if not self.fast_forward_on_resume:
+                for _ in range(self._iter):
+                    next(self.dataloader_iterator)
+
         while self._iter < self._max_iters and not self.stop_training:
             self.runner.model.train()
 
