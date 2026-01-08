@@ -2577,6 +2577,83 @@ class TestRunner(TestCase):
         runner.resume(path)
         self.assertIsNone(runner.param_schedulers)
 
+        # 2.8 test fast_forward_on_resume parameter in IterBasedTrainLoop
+        # 2.8.1 test fast_forward_on_resume=False (default behavior)
+        # When False, the dataloader should iterate through skipped steps
+        cfg = copy.deepcopy(self.iter_based_cfg)
+        cfg.experiment_name = 'test_checkpoint20'
+        cfg.train_cfg = dict(
+            by_epoch=False,
+            max_iters=12,
+            val_interval=100,  # Disable validation
+            fast_forward_on_resume=False)
+        runner = Runner.from_cfg(cfg)
+        runner.train()
+
+        # Track dataloader iterator calls during resume
+        dataloader_next_count = []
+
+        original_next = _InfiniteDataloaderIterator.__next__
+
+        def tracked_next(self):
+            dataloader_next_count.append(1)
+            return original_next(self)
+
+        _InfiniteDataloaderIterator.__next__ = tracked_next
+
+        try:
+            # Resume from iter 6 checkpoint
+            path = osp.join(self.temp_dir, 'iter_6.pth')
+            cfg = copy.deepcopy(self.iter_based_cfg)
+            cfg.experiment_name = 'test_checkpoint21'
+            cfg.train_cfg = dict(
+                by_epoch=False,
+                max_iters=12,
+                val_interval=100,  # Disable validation
+                fast_forward_on_resume=False)
+            runner = Runner.from_cfg(cfg)
+
+            # Clear counter before resume
+            dataloader_next_count.clear()
+            runner.resume(path)
+
+            # With fast_forward_on_resume=False, the iterator should be
+            # advanced 6 times during resume (for already trained iters)
+            # plus 6 times during the remaining training
+            runner.train()
+
+            # Total should be: 6 (fast-forward) + 6 (remaining training) = 12
+            self.assertEqual(len(dataloader_next_count), 12)
+            self.assertEqual(runner.iter, 12)
+
+            # 2.8.2 test fast_forward_on_resume=True
+            # When True, the fast-forward loop should be skipped
+            path = osp.join(self.temp_dir, 'iter_6.pth')
+            cfg = copy.deepcopy(self.iter_based_cfg)
+            cfg.experiment_name = 'test_checkpoint22'
+            cfg.train_cfg = dict(
+                by_epoch=False,
+                max_iters=12,
+                val_interval=100,  # Disable validation
+                fast_forward_on_resume=True)
+            runner = Runner.from_cfg(cfg)
+
+            # Clear counter before resume
+            dataloader_next_count.clear()
+            runner.resume(path)
+
+            # With fast_forward_on_resume=True, the iterator should NOT be
+            # advanced during resume, only during the remaining training
+            runner.train()
+
+            # Total should be: 0 (no fast-forward) + 6 (remaining training) = 6
+            self.assertEqual(len(dataloader_next_count), 6)
+            self.assertEqual(runner.iter, 12)
+
+        finally:
+            # Restore original method
+            _InfiniteDataloaderIterator.__next__ = original_next
+
     def test_build_runner(self):
         # No need to test other cases which have been tested in
         # `test_build_from_cfg`

@@ -209,8 +209,13 @@ class IterBasedTrainLoop(BaseLoop):
             first element in the tuple is a milestone and the second
             element is a interval. The interval is used after the
             corresponding milestone. Defaults to None.
-        fast_forward_on_resume (bool): Whether to fast forward the dataloader
-            when resuming from a checkpoint. Defaults to False.
+        fast_forward_on_resume (bool): Whether to skip advancing the
+            dataloader iterator when resuming from a checkpoint. When
+            `False` (default), the dataloader will iterate through
+            trained steps in the previous training to maintain training
+            state consistency. When `True`, this fast-forward
+            is skipped to save time, but may affect reproducibility if
+            the dataloader has state-dependent behavior.
     """
 
     def __init__(self,
