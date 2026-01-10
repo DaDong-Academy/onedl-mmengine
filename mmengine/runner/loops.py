@@ -283,14 +283,20 @@ class IterBasedTrainLoop(BaseLoop):
         # as a big epoch and execute the corresponding hook.
         self.runner.call_hook('before_train_epoch')
         if self._iter > 0:
-            print_log(
-                f'Advance dataloader {self._iter} steps to skip data '
-                'that has already been trained',
-                logger='current',
-                level=logging.WARNING)
             if not self.fast_forward_on_resume:
+                print_log(
+                    f'Advance dataloader {self._iter} steps to skip data '
+                    'that has already been trained',
+                    logger='current',
+                    level=logging.INFO)
                 for _ in range(self._iter):
                     next(self.dataloader_iterator)
+            else:
+                print_log(
+                    'Skip advancing dataloader to save time. Note that this '
+                    'may affect reproducibility when resuming a training.',
+                    logger='current',
+                    level=logging.WARNING)
 
         while self._iter < self._max_iters and not self.stop_training:
             self.runner.model.train()
