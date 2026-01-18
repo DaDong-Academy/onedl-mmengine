@@ -49,12 +49,16 @@ def get_torch_safe_globals() -> List[Callable]:
         slice, getattr, np_core.multiarray._reconstruct, np.ndarray, np.dtype,
         np_core.multiarray.scalar
     ]
-    # numpy >1.25 defines numpy.dtypes.UInt32DType, but below works for
-    allowlist += [
-        type(np.dtype(np.uint32)),
-        type(np.dtype(np.float64)),
-        type(np.dtype(np.int64))
-    ]
+
+    # Allow all numpy dtype classes (numpy >= 1.25)
+    if hasattr(np, 'dtypes'):
+        import inspect
+        for name in dir(np.dtypes):
+            obj = getattr(np.dtypes, name)
+            # Include all DType classes from numpy.dtypes
+            if inspect.isclass(obj) and name.endswith('DType'):
+                allowlist.append(obj)
+
     from mmengine.logging.history_buffer import HistoryBuffer
     allowlist.append(HistoryBuffer)
 
